@@ -6,6 +6,7 @@ using UnityEngine.UI;
 public class GameManager : MonoBehaviour
 {
     public CanvasUI canvas;
+    public GameObject baseCanvas;
     public PlayerBase player;
     public GameObject Nexus;
     public GameObject canvas1;

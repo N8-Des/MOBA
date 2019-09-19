@@ -8,7 +8,7 @@ public class MonicaController : MonoBehaviour {
     public Animator Anim;
     public bool isAttacking;
     bool isWalkingToTarget;
-    Transform nicTarget;
+    Vector3 nicTarget;
     List<Creep> creepsInRadius = new List<Creep>();
     List<Creep> creepsToAttack = new List<Creep>();
     bool nicWalking;
@@ -17,9 +17,21 @@ public class MonicaController : MonoBehaviour {
     Vector3 walkingPos;
     public GameObject autoPos;
     public int autoDamage;
+    public int maxHealth;
+    public int health;
+    public GameManager gameManager;
+    AnchorUI healthbar;
     void Update()
     {
         AI();
+    }
+    void Start()
+    {
+        health = maxHealth;
+        GameObject hpbar = GameObject.Instantiate((GameObject)Resources.Load("HealthbarFriendly"));
+        healthbar = hpbar.GetComponent<AnchorUI>();
+        healthbar.objectToFollow = this.transform;
+        healthbar.gameObject.transform.SetParent(gameManager.canvas1.transform);
     }
     public void addCreep(Creep newCreep)
     {
@@ -62,11 +74,13 @@ public class MonicaController : MonoBehaviour {
         if (nicWalking)
         {
             isAttacking = false;
-            walkingPos = nicTarget.position;
+            walkingPos = nicTarget;
             walkingPos.y = 0.09f;
             if (Mathf.Abs(Vector3.Distance(walkingPos, transform.position)) >= 0.2f)
             {
                 transform.position = Vector3.MoveTowards(transform.position, walkingPos, Time.deltaTime * 3);
+                transform.LookAt(nicTarget);
+                transform.localEulerAngles = new Vector3(0, transform.eulerAngles.y, 0);
                 Anim.SetBool("IsIdle", false);
                 Anim.SetBool("IsAttacking", false);
                 Anim.SetBool("IsWalking", true);
@@ -132,5 +146,27 @@ public class MonicaController : MonoBehaviour {
         Anim.SetBool("IsAttacking", true);
         Anim.SetBool("IsWalking", false);
         isAttacking = true;
+    }
+    public void movePointNic(Vector3 position)
+    {
+        nicWalking = true;
+        nicTarget = position;
+    }
+    public void takeDamage(int damage)
+    {
+        health -= damage;
+        healthbar.takeDamage(health, maxHealth);
+        if (health <= 0)
+        {
+            nic.monicaAlive = false;
+            Anim.SetBool("IsIdle", false);
+            Anim.SetBool("IsAttacking", false);
+            Anim.SetBool("IsWalking", false);
+            Anim.SetTrigger("Death");
+        }
+    }
+    public void killMe()
+    {
+        Destroy(gameObject);
     }
 }

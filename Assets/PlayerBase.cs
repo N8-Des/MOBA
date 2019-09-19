@@ -109,7 +109,9 @@ public class PlayerBase : MonoBehaviour
     public bool hexagonAttack;
     public int numGorilla;
     protected bool hasShield;
-    int currentShield;
+    float newCDR;
+    protected int currentShield;
+    protected int newDamage;
     void Start()
     {
         NewPosition = transform.position;
@@ -124,7 +126,7 @@ public class PlayerBase : MonoBehaviour
         center = this.transform;
         StartCoroutine(regen());
         health = maxHealth;
-        takeDamage(0);
+        takeDamage(0, false);
         addList();
     }
     void updateAbilDamage()
@@ -162,7 +164,7 @@ public class PlayerBase : MonoBehaviour
     {
         hasShield = true;
         currentShield = shieldAmt;
-        takeDamage(1);
+        takeDamage(0, false);
         StartCoroutine(shieldDelay(duration));
     }
     IEnumerator shieldDelay(float duration)
@@ -170,7 +172,7 @@ public class PlayerBase : MonoBehaviour
         yield return new WaitForSeconds(duration);
         hasShield = false;
         currentShield = 0;
-        takeDamage(0);
+        takeDamage(0, false);
     }
     void addList()
     {
@@ -341,7 +343,7 @@ public class PlayerBase : MonoBehaviour
             }
             abilityDescription();
             maxHealth += healthPerLevel;
-            takeDamage(-healthPerLevel);
+            takeDamage(-healthPerLevel, false);
         }
         else
         {
@@ -357,7 +359,7 @@ public class PlayerBase : MonoBehaviour
         yield return new WaitForSeconds(1);
         if (health + hpPerSec < maxHealth)
         {
-            takeDamage(-hpPerSec);
+            takeDamage(-hpPerSec, false);
         }
         StartCoroutine(regen());
     }
@@ -409,6 +411,7 @@ public class PlayerBase : MonoBehaviour
         itemHealth = 0;
         Armor = 0;
         MagicResist = 0;
+        CDReduction = 0;
         foreach (Item statItem in items)
         {
             itemAD += statItem.attackDamage;
@@ -416,12 +419,24 @@ public class PlayerBase : MonoBehaviour
             itemAtkSpeed += statItem.attackSpeed * 0.01f;
             itemHealth += statItem.health;
             MagicResist += statItem.magicResist;
-            Armor = statItem.armor;
+            Armor += statItem.armor;
+            CDReduction += statItem.cooldownReduction;
         }
         AttackDamage += itemAD;
         AbilityPower += itemAP;
         AttackSpeed += itemAtkSpeed;
         maxHealth += itemHealth;
+        if (CDReduction > 45)
+        {
+            CDReduction = 45;
+        }
+        newCDR = CDReduction * 0.01f;
+        newCDR = 1 - newCDR;
+        CDQ *= newCDR;
+        CDW *= newCDR;
+        CDE *= newCDR;
+        CDR *= newCDR;
+
         if (itemsHad[0])
         {
             AbilityPower = (int)(AbilityPower * 1.3f);
@@ -884,7 +899,7 @@ public class PlayerBase : MonoBehaviour
             }
             if (itemsHad[10])
             {
-                takeDamage((int)(AttackDamage * -0.2));
+                takeDamage((int)(AttackDamage * -0.2), false);
             }
             canAttackAfterAuto = true;
             if (hexagonAttack)
@@ -921,34 +936,94 @@ public class PlayerBase : MonoBehaviour
         NewPosition = bufferedPosition;
         creepSelected = null;
     }
-    public virtual void takeDamage(int damage)
+    public virtual void takeDamage(int damage, bool magic)
     {
-        if (hasShield)
+        if (magic)
         {
-            currentShield -= damage;
-            float div = (float)health / ((float)maxHealth + (float)currentShield);
-            healthbar.fillAmount = div;
-            shieldbar.fillAmount = ((float)health + (float)currentShield) / ((float)maxHealth + (float)currentShield);
-            healthdiv.text = health.ToString() + "/" + (maxHealth + currentShield).ToString();
-            if (currentShield <= 0)
+            if (hasShield)
             {
-                hasShield = false;
-                takeDamage(0);
-            }
-        }
-        else
-        {
-            health -= damage;
-            if (health < 0)
-            {
-                //die
+                currentShield -= damage;
+                float div = (float)health / ((float)maxHealth + (float)currentShield);
+                healthbar.fillAmount = div;
+                shieldbar.fillAmount = ((float)health + (float)currentShield) / ((float)maxHealth + (float)currentShield);
+                healthdiv.text = health.ToString() + "/" + (maxHealth + currentShield).ToString();
+                if (currentShield <= 0)
+                {
+                    hasShield = false;
+                    takeDamage(0, false);
+                }
             }
             else
             {
-                float div = (float)health / (float)maxHealth;
+                newDamage = (int)(damage * (100 / (100 + MagicResist)));
+                health -= newDamage;
+                if (newDamage != 0)
+                {
+                    GameObject dmgNum = GameObject.Instantiate((GameObject)Resources.Load("DamageTextPlayerMagic"));
+                    dmgNum.transform.SetParent(gameManager.baseCanvas.transform);
+                    dmgNum.GetComponent<DamageNum>().objectToFollow = this.gameObject.transform;
+                    dmgNum.GetComponent<DamageNum>().damageText = newDamage.ToString();
+                }
+                if (health < 0)
+                {
+                    //die
+                }
+                else
+                {
+                    float div = (float)health / (float)maxHealth;
+                    healthbar.fillAmount = div;
+                    healthdiv.text = health.ToString() + "/" + maxHealth.ToString();
+                }
+            }
+        }else
+        {
+
+            if (hasShield)
+            {
+                currentShield -= damage;
+                float div = (float)health / ((float)maxHealth + (float)currentShield);
                 healthbar.fillAmount = div;
-                healthdiv.text = health.ToString() + "/" + maxHealth.ToString();
+                shieldbar.fillAmount = ((float)health + (float)currentShield) / ((float)maxHealth + (float)currentShield);
+                healthdiv.text = health.ToString() + "/" + (maxHealth + currentShield).ToString();
+                if (currentShield <= 0)
+                {
+                    hasShield = false;
+                    takeDamage(0, false);
+                }
+            }
+            else
+            {
+                newDamage = (int)(damage *(100 / (100 + Armor)));
+                health -= newDamage;
+                if (newDamage <= -20)
+                {
+                    GameObject dmgNum = GameObject.Instantiate((GameObject)Resources.Load("DamageTextPlayerHeal"));
+                    dmgNum.transform.SetParent(gameManager.baseCanvas.transform);
+                    dmgNum.GetComponent<DamageNum>().objectToFollow = this.gameObject.transform;
+                    dmgNum.GetComponent<DamageNum>().damageText = Mathf.Abs(damage).ToString();
+                }
+                else
+                {
+                    if (newDamage > 0)
+                    {
+                        GameObject dmgNum = GameObject.Instantiate((GameObject)Resources.Load("DamageTextPlayer"));
+                        dmgNum.transform.SetParent(gameManager.baseCanvas.transform);
+                        dmgNum.GetComponent<DamageNum>().objectToFollow = this.gameObject.transform;
+                        dmgNum.GetComponent<DamageNum>().damageText = newDamage.ToString();
+                    }
+                }
+                if (health < 0)
+                {
+                    //die
+                }
+                else
+                {
+                    float div = (float)health / (float)maxHealth;
+                    healthbar.fillAmount = div;
+                    healthdiv.text = health.ToString() + "/" + maxHealth.ToString();
+                }
             }
         }
+        
     }
 }

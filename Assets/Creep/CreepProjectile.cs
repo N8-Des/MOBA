@@ -20,7 +20,7 @@ public class CreepProjectile : MonoBehaviour {
         }
         else
         {
-            playerTarget.GetComponent<PlayerBase>().takeDamage(damage);
+            playerTarget.GetComponent<PlayerBase>().takeDamage(damage, true);
             Destroy(gameObject);
         }
     }

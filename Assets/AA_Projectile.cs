@@ -57,7 +57,7 @@ public class AA_Projectile : MonoBehaviour {
                 }
                 if (player.itemsHad[10])
                 {
-                    player.takeDamage((int)(player.AttackDamage * -0.2));
+                    player.takeDamage((int)(player.AttackDamage * -0.2), false);
                 }
                 if (KentSlow)
                 {

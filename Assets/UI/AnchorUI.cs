@@ -27,7 +27,7 @@ public class AnchorUI : MonoBehaviour
 
     // Cached reference to the canvas containing this object.
     // We'll use this to position it correctly
-    RectTransform _myCanvas;
+    public RectTransform _myCanvas;
 
 
     // Cache a reference to our parent canvas, so we don't repeatedly search for it.

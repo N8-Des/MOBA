@@ -33,13 +33,22 @@ public class NicPlayer : PlayerBase
     GameObject shieldVis;
     public List<float> extraMaxShield = new List<float>();
     public List<int> shieldBaseScale = new List<int>();
+    public List<int> monicaBaseHealth = new List<int>();
+    int monicaHealth;
     int shieldDMG;
     float maxHPShield;
     bool movingHookE;
+    public bool monicaAlive;
+    Vector3 lanternPosition;
+    public MonicaController monica;
+    public GameObject monicaPointer;
+    public GameObject monicaPos;
+    public GameObject lanternPos;
     void OnEnable()
     {
         shieldDMG = shieldBaseScale[0];
         maxHPShield = extraMaxShield[0];
+        monicaHealth = monicaBaseHealth[0];
         StartCoroutine(ticcolas());
     }
     public void hitQ(Creep creepHit)
@@ -89,7 +98,12 @@ public class NicPlayer : PlayerBase
     }
     public override void uniqueWLevelUp(int level)
     {
-
+        shieldDMG = shieldBaseScale[level -1];
+        maxHPShield = extraMaxShield[level -1];
+    }
+    public override void uniqueRLevelUp(int level)
+    {
+        monicaHealth = monicaBaseHealth[level - 1];
     }
     IEnumerator endQ()
     {
@@ -104,15 +118,18 @@ public class NicPlayer : PlayerBase
     }
     void endStunQ()
     {
-        creepQ.isQdNic = false;
-        CooldownQ = false;
-        IndQ.StartCooldown(CDQ, this, 1);
-        QTargetted = false;
-        Anim.SetBool("hooked", false);
-        hook.SetActive(false);
-        creepQ.isStunned = false;
-        creepQ.canMove = true;
-        QSlamming = false;
+        if (QTargetted)
+        {
+            creepQ.isQdNic = false;
+            CooldownQ = false;
+            IndQ.StartCooldown(CDQ, this, 1);
+            QTargetted = false;
+            Anim.SetBool("hooked", false);
+            hook.SetActive(false);
+            creepQ.isStunned = false;
+            creepQ.canMove = true;
+            QSlamming = false;
+        }
     }
     void LateUpdate()
     {
@@ -149,11 +166,17 @@ public class NicPlayer : PlayerBase
             bool touch = Input.GetKeyDown(KeyCode.Q);
             if (QTargetted)
             {
-                if (Ab1 && !stoppingAttack && anythingWorks)
+                if (Ab1 && !stoppingAttack && anythingWorks && QTargetted)
                 {
-                    Qind2.SetActive(true);
-                    Qind2.transform.position = creepQ.transform.position - new Vector3(0, -1, 0);
-                    QPressed = true;
+                    if (creepQ != null)
+                    {
+                        Qind2.SetActive(true);
+                        Qind2.transform.position = creepQ.transform.position - new Vector3(0, -1, 0);
+                        QPressed = true;
+                    }
+                    else{
+                        QTargetted = false;
+                    }
                 }
                 else if (QPressed || (leftClick && Ab1))
                 {
@@ -205,6 +228,107 @@ public class NicPlayer : PlayerBase
                     anythingWorks = true;
                     endingAttack = false;
                 }
+            }
+        }
+    }
+    public override void RTest()
+    {
+        if (CooldownR && IndR.levelNum > 0)
+        {
+            stoppingAttack = Input.GetKeyUp(KeyCode.R);
+            bool leftClick = Input.GetMouseButton(0);
+            bool touch = Input.GetKeyDown(KeyCode.R);
+            if (monicaAlive)
+            {
+
+                if (Ab4 && !stoppingAttack && anythingWorks)
+                {
+                    monicaPointer.SetActive(true);
+                    RPressed = true;
+                }
+                else if (RPressed || (leftClick && Ab4))
+                {
+                    monicaPointer.SetActive(false);
+                    RPressed = false;
+                    isInvisible = false;
+                    monica.movePointNic(monicaPos.transform.position);
+                }
+                else
+                {
+                    RIndicator.SetActive(false);
+                    RPressed = false;
+                }
+                if (Ab4 && endingAttack)
+                {
+                }
+                if (touch)
+                {
+                    anythingWorks = true;
+                    endingAttack = false;
+                }
+            }
+            else
+            {
+                if (Ab4 && !stoppingAttack && anythingWorks)
+                {
+                    RIndicator.SetActive(true);
+                    lanternPosition = lanternPos.transform.position;
+                    RPressed = true;
+                }
+                else if (RPressed || (leftClick && Ab4))
+                {
+                    RIndicator.SetActive(false);
+                    RPressed = false;
+                    isInvisible = false;
+                    activateR();
+                }
+                else
+                {
+                    RIndicator.SetActive(false);
+                    RPressed = false;
+                }
+                if (Ab4 && endingAttack)
+                {
+                }
+                if (touch)
+                {
+                    anythingWorks = true;
+                    endingAttack = false;
+                }
+            }
+        }
+    }
+    public void monicaDied()
+    {
+        CooldownR = false;
+        IndR.StartCooldown(CDR, this, 4);
+        monicaAlive = false;
+    }
+    public override void R()
+    {
+        GameObject nicLantern = GameObject.Instantiate((GameObject)Resources.Load("NicLantern"));
+        Lantern newLantern = nicLantern.GetComponent<Lantern>();
+        nicLantern.transform.position = lanternPosition;
+        newLantern.gm = gameManager;
+        newLantern.monicaDamage = RDamage + (int)(AbilityPower * 0.1);
+        newLantern.monicaHealth = monicaHealth + (int)(maxHealth * 0.15);
+        newLantern.nic = this;
+    }
+    public override void activateR()
+    {
+        if (canAttack)
+        {
+            canMove = false;
+            RindRot = RIndicator.transform.rotation;
+            graphics.transform.LookAt(lanternPosition);
+            forceStopMoving();
+            Anim.SetTrigger("R");
+            Anim.SetBool("isAttacking", true);
+            Anim.SetBool("isIdle", false);
+            canAttack = false;
+            if (itemsHad[6])
+            {               
+                StartCoroutine(hexagon());
             }
         }
     }
@@ -345,7 +469,8 @@ public class NicPlayer : PlayerBase
             "\nTHICCOLAS: Nic shields himself for " + shieldDMG + "<color=red> (+" + (int)(maxHealth * maxHPShield) + ")</color> damage for 7 seconds.";
         Edesc = "Nic spins his hook in a circle, knocking back all hit enemy units and dealing " + EDamage + " <color=#32fb93>(+" + (int)(AbilityPower * 0.4) + ")</color> magic damage. If an enemy is currently hooked, "
             + "this attack deals additional damage equal to 7% of the hooked enemy's maximum health.";
-        Rdesc = "Gavin takes reduced damaged based on his missing health, up to " + RDamage + "% damage reduction.";
+        Rdesc = "Nicolas summons Monica, vanquisher of the devil, to his aid. Monica has " + monicaHealth + " <color=red>(+" + (int)(maxHealth * 0.15) + ")</color> health, and her attacks deal " + RDamage +
+            " <color=#32fb93>(+" + (int)(AbilityPower * 0.1) + ")</color> magic damage. \n \nWhile monica is alive, you can recast R to change her position";
         IndQ.updateAbilityDescription(Qdesc);
         IndW.updateAbilityDescription(Wdesc);
         IndE.updateAbilityDescription(Edesc);
@@ -426,7 +551,7 @@ public class NicPlayer : PlayerBase
             }
             if (itemsHad[10])
             {
-                takeDamage((int)(AttackDamage * -0.2));
+                takeDamage((int)(AttackDamage * -0.2), false);
             }
             if (hexagonAttack)
             {

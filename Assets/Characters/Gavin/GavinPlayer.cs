@@ -236,7 +236,7 @@ public class GavinPlayer : PlayerBase
             }
             if (itemsHad[10])
             {
-                takeDamage((int)(AttackDamage * -0.2));
+                takeDamage((int)(AttackDamage * -0.2), false);
             }
             if (hexagonAttack)
             {
@@ -268,25 +268,92 @@ public class GavinPlayer : PlayerBase
         Anim.SetBool("isWalking", false);
         Anim.SetBool("isAttacking", false);
     }
-    public override void takeDamage(int damage)
+    public override void takeDamage(int damage, bool magic)
     {
         if (damageReduction != 0)
         {
-            health -= (int)(damage * (damageReduction / 100));
+            damage = (int)(damage * (damageReduction / 100));
+        }
+        if (!magic)
+        {
+            if (hasShield)
+            {
+                currentShield -= damage;
+                float div = (float)health / ((float)maxHealth + (float)currentShield);
+                healthbar.fillAmount = div;
+                shieldbar.fillAmount = ((float)health + (float)currentShield) / ((float)maxHealth + (float)currentShield);
+                healthdiv.text = health.ToString() + "/" + (maxHealth + currentShield).ToString();
+                if (currentShield <= 0)
+                {
+                    hasShield = false;
+                    takeDamage(0, false);
+                }
+            }
+            else
+            {
+                newDamage = (int)(damage * (100 / (100 + MagicResist)));
+                health -= newDamage;
+                GameObject dmgNum = GameObject.Instantiate((GameObject)Resources.Load("DamageTextPlayerMagic"));
+                dmgNum.transform.SetParent(gameManager.baseCanvas.transform);
+                dmgNum.GetComponent<DamageNum>().objectToFollow = this.gameObject.transform;
+                dmgNum.GetComponent<DamageNum>().damageText = newDamage.ToString();
+                if (health < 0)
+                {
+                    //die
+                }
+                else
+                {
+                    float div = (float)health / (float)maxHealth;
+                    healthbar.fillAmount = div;
+                    healthdiv.text = health.ToString() + "/" + maxHealth.ToString();
+                }
+            }
         }
         else
         {
-            health -= damage;
+
+            if (hasShield)
+            {
+                currentShield -= damage;
+                float div = (float)health / ((float)maxHealth + (float)currentShield);
+                healthbar.fillAmount = div;
+                shieldbar.fillAmount = ((float)health + (float)currentShield) / ((float)maxHealth + (float)currentShield);
+                healthdiv.text = health.ToString() + "/" + (maxHealth + currentShield).ToString();
+                if (currentShield <= 0)
+                {
+                    hasShield = false;
+                    takeDamage(0, false);
+                }
+            }
+            else
+            {
+                newDamage = (int)(damage * (100 / (100 + Armor)));
+                if (damage <= -20)
+                {
+                    GameObject dmgNum = GameObject.Instantiate((GameObject)Resources.Load("DamageTextPlayerHeal"));
+                    dmgNum.transform.SetParent(gameManager.baseCanvas.transform);
+                    dmgNum.GetComponent<DamageNum>().objectToFollow = this.gameObject.transform;
+                    dmgNum.GetComponent<DamageNum>().damageText = Mathf.Abs(damage).ToString();
+                }
+                else
+                {
+                    GameObject dmgNum = GameObject.Instantiate((GameObject)Resources.Load("DamageTextPlayer"));
+                    dmgNum.transform.SetParent(gameManager.baseCanvas.transform);
+                    dmgNum.GetComponent<DamageNum>().objectToFollow = this.gameObject.transform;
+                    dmgNum.GetComponent<DamageNum>().damageText = newDamage.ToString();
+                }
+                if (health < 0)
+                {
+                    //die
+                }
+                else
+                {
+                    float div = (float)health / (float)maxHealth;
+                    healthbar.fillAmount = div;
+                    healthdiv.text = health.ToString() + "/" + maxHealth.ToString();
+                }
+            }
         }
-        if (health < 0)
-        {
-            //die
-        }
-        else
-        {
-            float div = (float)health / (float)maxHealth;
-            healthbar.fillAmount = div;
-            healthdiv.text = health.ToString() + "/" + maxHealth.ToString();
-        }
+
     }
 }

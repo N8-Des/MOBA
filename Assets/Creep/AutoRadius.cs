@@ -15,7 +15,7 @@ public class AutoRadius : MonoBehaviour
         {
             parent.playerInAutoRadius = true;
         }
-        else if (collider.gameObject.name == "MonicaBart(clone)")
+        else if (collider.gameObject.name == "MonicaBart(Clone)")
         {
             parent.monicaInAutoRadius = true;
             parent.monica = collider.GetComponent<MonicaController>();
@@ -27,7 +27,7 @@ public class AutoRadius : MonoBehaviour
         {
             parent.playerInAutoRadius = false;
         }
-        else if (collider.gameObject.name == "MonicaBart(clone)")
+        else if (collider.gameObject.name == "MonicaBart(Clone)")
         {
             parent.monicaInAutoRadius = false;
         }

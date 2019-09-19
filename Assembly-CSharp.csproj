@@ -57,6 +57,7 @@
      <Compile Include="Assets\Characters\Kent\WaterMaterial.cs" />
      <Compile Include="Assets\Characters\Kent\testParticle.cs" />
      <Compile Include="Assets\Characters\Nicolas\HookScale.cs" />
+     <Compile Include="Assets\Characters\Nicolas\Lantern.cs" />
      <Compile Include="Assets\Characters\Nicolas\Monica\MonicaAA.cs" />
      <Compile Include="Assets\Characters\Nicolas\Monica\MonicaAggro.cs" />
      <Compile Include="Assets\Characters\Nicolas\Monica\MonicaAuto.cs" />

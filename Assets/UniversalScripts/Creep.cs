@@ -51,11 +51,11 @@ public class Creep : MonoBehaviour {
     }
     public bool takeDamage(int damage)
     {
-        health -= damage - armor;
+        health -= (int)(damage * (100 / (100 + armor)));
         GameObject dmgNum = GameObject.Instantiate((GameObject)Resources.Load("DamageText"));
         dmgNum.transform.SetParent(canvas1.transform);
         dmgNum.GetComponent<DamageNum>().objectToFollow = this.gameObject.transform;
-        dmgNum.GetComponent<DamageNum>().damageText = (damage - armor).ToString();
+        dmgNum.GetComponent<DamageNum>().damageText = ((int)(damage * (100 / (100 + armor)))).ToString();
         healthbar.takeDamage(health, maxHealth);
         if (health <= 0)
         {
@@ -79,8 +79,8 @@ public class Creep : MonoBehaviour {
     }
     public bool takeMagicDamage(int damage)
     {
-        health -= damage - magicResist;
-        StartCoroutine(MagicDelay(damage - magicResist));
+        health -= (int)(damage * (100 / (100 + magicResist)));
+        StartCoroutine(MagicDelay((int)(damage * (100 / (100 + armor))))); 
         healthbar.takeDamage(health, maxHealth);
         if (health <= 0)
         {
@@ -247,6 +247,11 @@ public class Creep : MonoBehaviour {
 
     public virtual void AI()
     {
+        if (monica == null)
+        {
+            monicaInAutoRadius = false;
+            monicaInRadius = false;
+        }
         if (canMove)
         {
             if (monicaInRadius)
@@ -353,10 +358,10 @@ public class Creep : MonoBehaviour {
         isAttacking = false;
         if (attackingMonica)
         {
-
+            monica.takeDamage(this.damage);
         }else
         {
-            player.takeDamage(this.damage);
+            player.takeDamage(this.damage, false);
         }
         canAttack = true;
     }

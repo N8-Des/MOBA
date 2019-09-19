@@ -13,7 +13,7 @@ public class AggroRadius : MonoBehaviour {
         if (collider.gameObject == parent.player.gameObject)
         {
             parent.playerInRadius = true;
-        } else if (collider.gameObject.name == "MonicaBart(clone)")
+        } else if (collider.gameObject.name == "MonicaBart(Clone)")
         {
             parent.monicaInRadius = true;
             parent.monica = collider.GetComponent<MonicaController>();
@@ -24,7 +24,7 @@ public class AggroRadius : MonoBehaviour {
         if (collider.gameObject == parent.player.gameObject || collider.gameObject.name == "MonicaBart(clone)")
         {
             parent.playerInRadius = false;
-        } else if (collider.gameObject.name == "MonicaBart(clone)")
+        } else if (collider.gameObject.name == "MonicaBart(Clone)")
         {
             parent.monicaInRadius = false;
         }

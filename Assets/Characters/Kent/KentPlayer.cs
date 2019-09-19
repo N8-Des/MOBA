@@ -474,7 +474,7 @@ public class KentPlayer : PlayerBase
             }
             if (itemsHad[10])
             {
-                takeDamage((int)(AttackDamage * -0.2));
+                takeDamage((int)(AttackDamage * -0.2), false);
             }
             if (hexagonAttack)
             {
