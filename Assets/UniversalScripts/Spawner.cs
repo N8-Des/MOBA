@@ -43,7 +43,7 @@ public class Spawner : MonoBehaviour {
                 GameObject newEnemy = Instantiate(wavePartOn.enemy);
                 newEnemy.transform.position = new Vector3((transform.position.x + addition), transform.position.y - 3, (transform.position.z + Random.Range(-3, 3)));
                 Creep creepyBoy = newEnemy.gameObject.GetComponent<Creep>();
-                creepyBoy.player = gameManager.player;
+                creepyBoy.player = gameManager.acplayer;
                 creepyBoy.Nexus = gameManager.Nexus;
                 creepyBoy.canvas1 = gameManager.canvas1;
                 creepyBoy.gameManager = gameManager;
@@ -52,6 +52,7 @@ public class Spawner : MonoBehaviour {
                 healthbar.gameObject.GetComponent<AnchorUI>().objectToFollow = newEnemy.transform;
                 creepyBoy.healthbar = healthbar.gameObject.GetComponent<AnchorUI>();
                 healthbar.gameObject.transform.SetParent(gameManager.canvas1.transform);
+                creepyBoy.gameObject.SetActive(true);
                 count += 1;
                 yield return new WaitForSeconds(delaySpawn);
             }

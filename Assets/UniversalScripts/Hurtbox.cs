@@ -31,7 +31,7 @@ public class Hurtbox : MonoBehaviour {
         }
         if (player != null && player.itemsHad[9])
         {
-            player.takeDamage((int)(damage * -0.1f), false);
+            player.takeDamage((int)(damage * -0.1f), false, false);
         }
         if (magicDamage)
         {

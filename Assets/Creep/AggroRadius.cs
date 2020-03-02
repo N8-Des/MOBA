@@ -12,6 +12,7 @@ public class AggroRadius : MonoBehaviour {
     {
         if (collider.gameObject == parent.player.gameObject)
         {
+
             parent.playerInRadius = true;
         } else if (collider.gameObject.name == "MonicaBart(Clone)")
         {

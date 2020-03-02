@@ -4,6 +4,10 @@ using UnityEngine;
 
 public class CheatSheet : MonoBehaviour {
     public PlayerBase character;
+    void OnEnable()
+    {
+        //character = gameObject.transform.parent.gameObject.GetComponent<PlayerBase>();
+    }
     public void addLevel()
     {
         character.abilityLevelNum += 1;

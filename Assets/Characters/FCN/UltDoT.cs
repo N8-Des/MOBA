@@ -6,6 +6,8 @@ public class UltDoT : MonoBehaviour
 {
     public Quaternion rotation;
     public int Damage;
+    public bool magicDamage = true;
+    public bool isDio;
     void Start()
     {
         rotation = transform.rotation;
@@ -20,7 +22,7 @@ public class UltDoT : MonoBehaviour
         if (creep != null)
         {
             creep.takingDamage = true;
-            creep.takeDamageOverTime(Damage);
+            creep.takeDamageOverTime(Damage, magicDamage, isDio);
         }
     }
     void OnTriggerExit(Collider collider)

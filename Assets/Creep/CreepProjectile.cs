@@ -6,6 +6,7 @@ public class CreepProjectile : MonoBehaviour {
     public GameObject playerTarget;
     public float speed;
     public int damage;
+    public bool magicDamage = true;
     Vector3 offset = new Vector3(0, 2, 0);
     public void Update()
     {        
@@ -20,7 +21,7 @@ public class CreepProjectile : MonoBehaviour {
         }
         else
         {
-            playerTarget.GetComponent<PlayerBase>().takeDamage(damage, true);
+            playerTarget.GetComponent<PlayerBase>().takeDamage(damage, magicDamage, false);
             Destroy(gameObject);
         }
     }

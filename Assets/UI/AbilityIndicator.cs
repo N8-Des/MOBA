@@ -7,7 +7,7 @@ using UnityEngine.EventSystems;
 
 public class AbilityIndicator : MonoBehaviour {
     public Image picture;
-    float timeLeft;
+    public float timeLeft;
     public float maxTime;
     public int levelNum;
     public GameObject levelInd;
@@ -20,6 +20,7 @@ public class AbilityIndicator : MonoBehaviour {
     void Start()
     {
         picture = gameObject.GetComponent<Image>();
+        player = gameObject.transform.parent.gameObject.GetComponentInParent<PlayerBase>();
     }
 
     public void StartCooldown(float cooldown, PlayerBase player, int abnum)

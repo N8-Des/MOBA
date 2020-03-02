@@ -9,7 +9,7 @@ public class AutoRadius : MonoBehaviour
     {
         parent = transform.parent.GetComponent<Creep>();
     }
-    void OnTriggerEnter(Collider collider)
+    void OnTriggerStay(Collider collider)
     {
         if (collider.gameObject == parent.player.gameObject)
         {

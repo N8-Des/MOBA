@@ -19,18 +19,14 @@ public class NicPlayer : PlayerBase
     float followSharp = 0.1f;
     Vector3 followOffset;
     Vector3 upwardsOffset = new Vector3(0, 3, 0);
-    [SerializeField]
-    GameObject Qind2;
+    public GameObject Qind2;
     bool QSlamming = false;
     Vector3 hookpos;
     bool goingUp;
     bool ticAuto;
-    [SerializeField]
-    GameObject leftTic;
-    [SerializeField]
-    GameObject rightTic;
-    [SerializeField]
-    GameObject shieldVis;
+    public GameObject leftTic;
+    public GameObject rightTic;
+    public GameObject shieldVis;
     public List<float> extraMaxShield = new List<float>();
     public List<int> shieldBaseScale = new List<int>();
     public List<int> monicaBaseHealth = new List<int>();
@@ -44,12 +40,26 @@ public class NicPlayer : PlayerBase
     public GameObject monicaPointer;
     public GameObject monicaPos;
     public GameObject lanternPos;
+    public AudioManager audManager;
+    public int passiveStacks;
+    public GameObject soul;
     void OnEnable()
     {
         shieldDMG = shieldBaseScale[0];
         maxHPShield = extraMaxShield[0];
         monicaHealth = monicaBaseHealth[0];
         StartCoroutine(ticcolas());
+    }
+    public void qNoise()
+    {
+        audManager.audioList[0].Play();
+    }
+    public void TouchSoul()
+    {
+        passiveStacks += 1;
+        string Pdesc = "Every enemy defeated via auto attack has a chance to spawn a soul. Walking over a soul absorbs it, permanently increasing Nic's armor and ability power by 1. \n\n\nCurrent souls: " + passiveStacks;
+        passiveDesc.GetComponentInParent<AbilityIndicator>().updateAbilityDescription(Pdesc);
+        updateItemStats();
     }
     public void hitQ(Creep creepHit)
     {
@@ -59,7 +69,66 @@ public class NicPlayer : PlayerBase
         QTargetted = true;
         Anim.SetBool("hooked", true);
         hook.SetActive(true);
+        audManager.audioList[3].Play();
     }
+    protected override void updateItemStats()
+    {
+        AttackDamage = startAD + (ADPerLevel * level);
+        AttackSpeed /= itemAtkSpeed + 1;
+        Armor = startArmor;
+        MagicResist = startMagicRes;       
+        itemAD = 0;
+        itemAP = 0;
+        itemAtkSpeed = 0;
+        itemHealth = 0;
+        CDReduction = 0;
+        foreach (Item statItem in items)
+        {
+            itemAD += statItem.attackDamage;
+            itemAP += statItem.abilityPower;
+            itemAtkSpeed += statItem.attackSpeed * 0.01f;
+            itemHealth += statItem.health;
+            MagicResist += statItem.magicResist;
+            Armor += statItem.armor;
+            CDReduction += statItem.cooldownReduction;
+        }
+        AttackDamage += itemAD;
+        AbilityPower += itemAP;
+        AttackSpeed *= itemAtkSpeed + 1;
+        maxHealth += itemHealth;
+        if (CDReduction > 45)
+        {
+            CDReduction = 45;
+        }
+        if (CDReduction > 0 && newCDR > 0)
+        {
+            CDQ /= newCDR;
+            CDW /= newCDR;
+            CDE /= newCDR;
+            CDR /= newCDR;
+        }
+        newCDR = CDReduction * 0.01f;
+        newCDR = 1 - newCDR;
+        CDQ *= newCDR;
+        CDW *= newCDR;
+        CDE *= newCDR;
+        CDR *= newCDR;
+        AbilityPower += passiveStacks;
+
+        if (itemsHad[0])
+        {
+            AbilityPower = (int)(AbilityPower * 1.3f);
+        }
+        if (itemsHad[4])
+        {
+            maxHealth += (int)(AttackDamage * 3f);
+        }
+        health += itemHealth;
+        itemChange();
+        abilityDescription();
+        Armor += passiveStacks;
+    }
+ 
     public override void activateQ()
     {
         if (canAttack)
@@ -362,24 +431,32 @@ public class NicPlayer : PlayerBase
             EndAttack();
             autoNum = 1;
             RaycastHit hit;
+            RaycastHit yeet;
+            bool cant = false;
             Ray raymond = Camera.main.ScreenPointToRay(Input.mousePosition);
             if (Physics.Raycast(raymond, out hit, Mathf.Infinity, groundOnly))
             {
-                if (!canAttackAfterAuto)
+                if (Physics.Linecast(transform.position + rayOffset, hit.point + rayOffset, out yeet, wallMask))
+                {
+                    if (yeet.collider.transform != null)
+                    {
+                        cant = true;
+                    }
+                }
+                if (!canAttackAfterAuto && !cant)
                 {
                     bufferedPosition = hit.point;
-                    bufferedPosition.y = 0.5f;
                     StartCoroutine(waitToMove());
                     isBuffering = true;
                 }
-                else
+                else if (!cant)
                 {
                     canAttackAfterAuto = true;
                     NewPosition = hit.point;
-                    NewPosition.y = 0.5f;
                     EndAttack();
                 }
             }
+            cant = false;
             if (Physics.Raycast(raymond, out hit, Mathf.Infinity, creepsOnly) && hit.transform.tag == "Creep")
             {
                 Creep touchedCreep = hit.transform.gameObject.GetComponent<Creep>();
@@ -392,12 +469,14 @@ public class NicPlayer : PlayerBase
                     transform.eulerAngles = new Vector3(0, transform.eulerAngles.y, 0);
                     if (autoOn <= 2)
                     {
+                        audManager.audioList[1].Play();
                         Anim.SetTrigger("Attack" + autoOn);
                         Anim.SetBool("isAttacking", true);
                         Anim.SetBool("isIdle", false);
                     }
                     else
                     {
+                        audManager.audioList[1].Play();
                         autoOn = 1;
                         Anim.SetTrigger("Attack" + autoOn);
                         Anim.SetBool("isAttacking", true);
@@ -441,6 +520,7 @@ public class NicPlayer : PlayerBase
         {
             EHitbox.damage += (int)(creepQ.maxHealth * 0.07);
         }
+        audManager.audioList[2].Play();
     }
     public override void EndAttack()
     {
@@ -480,6 +560,9 @@ public class NicPlayer : PlayerBase
         IndW.updateAbilityName("(W) Ticcolas/Thiccolas");
         IndE.updateAbilityName("(E) Flayer");
         IndR.updateAbilityName("(R) Summon: Monica");
+        string Pdesc = "Every enemy defeated via auto attack has a chance to spawn a soul. Walking over a soul absorbs it, permanently increasing Nic's armor and ability power by 1. \n\n\nCurrent souls: " + passiveStacks;
+        passiveDesc.GetComponentInParent<AbilityIndicator>().updateAbilityDescription(Pdesc);
+        passiveDesc.GetComponentInParent<AbilityIndicator>().updateAbilityName("Soul Collection");
     }
     public override void AttackCreep(Transform target)
     {
@@ -493,6 +576,7 @@ public class NicPlayer : PlayerBase
             graphics.transform.rotation = Quaternion.Slerp(transRot, graphics.transform.rotation, 0.2f);
             Anim.SetBool("isAttacking", true);
             Anim.SetBool("isIdle", false);
+            audManager.audioList[1].Play();
             if (autoOn <= 2)
             {
                 Anim.SetTrigger("Attack" + autoOn);
@@ -511,6 +595,7 @@ public class NicPlayer : PlayerBase
 
     public override void hitCreepWithAuto()
     {
+        bool creepKilled = false;
         if (!isMoving)
         {
             canAttackAfterAuto = false;
@@ -546,34 +631,42 @@ public class NicPlayer : PlayerBase
                 int rando = Random.Range(0, 99);
                 if (rando >= 80)
                 {
-                    creepSelected.takeDamage(AttackDamage);
+                    creepKilled = creepSelected.takeDamage(AttackDamage);
                 }
             }
             if (itemsHad[10])
             {
-                takeDamage((int)(AttackDamage * -0.2), false);
+                takeDamage((int)(AttackDamage * -0.2), false, false);
             }
             if (hexagonAttack)
             {
-                creepSelected.takeDamage(AttackDamage + 100);
+                creepKilled = creepSelected.takeDamage(AttackDamage + 100);
                 hexagonAttack = false;
             }
             else
             {
                 if (ticAuto)
                 {
-                    creepSelected.takeMagicDamage(WDamage + (int)(AbilityPower * 0.65));
+                    creepKilled = creepSelected.takeMagicDamage(WDamage + (int)(AbilityPower * 0.65));
                     ticAuto = false;
                     leftTic.SetActive(false);
                     rightTic.SetActive(false);
                 }
-                creepSelected.takeDamage(AttackDamage);
+                creepKilled = creepSelected.takeDamage(AttackDamage);
                 ticAuto = false;
             }
             GameObject effect = GameObject.Instantiate((GameObject)Resources.Load("NicAutoFlash"));
             //GameObject hitNoise = GameObject.Instantiate((GameObject)Resources.Load("KentAutoNoise"));
             //hitNoise.GetComponent<AudioSource>().pitch = Random.Range(0.7f, 1.3f);
             effect.transform.position = creepSelected.transform.position;
+            if (creepKilled)
+            {
+                int rand = Random.Range(0, 100);
+                if (rand >= 40)
+                {
+                    Instantiate(soul, creepSelected.transform.position, Quaternion.identity);
+                }
+            }
         }
     }
     IEnumerator sheildLoop()

@@ -1,20 +1,21 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.UI;
 
-public class PlayerBase : MonoBehaviour
+public class PlayerBase :  MonoBehaviour
 {
+    public int charNum;
     public AutoRangeChecker achecker;
     protected Vector3 NewPosition;
     public float speed;
     public float walkRange = 0.012f;
     public int health;
     public int maxHealth;
-    public Vector3 offsetY = new Vector3(0, 0.09f, 0);
+    public Vector3 offsetY = new Vector3(0, -0.7f, 0);
     public GameObject graphics;
     public Animator Anim;
-    public Transform center;
     public GameObject QIndicator;
     public GameObject WIndicator;
     public GameObject EIndicator;
@@ -97,10 +98,10 @@ public class PlayerBase : MonoBehaviour
     public int gold = 0;
     public Text goldAmt;
     public GameManager gameManager;
-    int itemAD;
-    int itemAP;
-    int itemHealth;
-    float itemAtkSpeed;
+    protected int itemAD;
+    protected int itemAP;
+    protected int itemHealth;
+    protected float itemAtkSpeed;
     public int hpPerSec;
     List<Item> itemsToDestroy = new List<Item>();
     public List<bool> itemsHad = new List<bool>();
@@ -109,13 +110,26 @@ public class PlayerBase : MonoBehaviour
     public bool hexagonAttack;
     public int numGorilla;
     protected bool hasShield;
-    float newCDR;
+    protected float newCDR;
     protected int currentShield;
     protected int newDamage;
+    protected int startAD;
+    public GameObject canvasPlayer;
+    public List<GameObject> imageItems = new List<GameObject>();
+    protected Vector3 rayOffset = new Vector3(0, 2, 0);
+    public Text passiveDesc;
+    public LayerMask wallMask;
+    protected int startArmor;
+    protected int startMagicRes;
+    public Room currentRoom;
+    bool moveSlow = true;
+    bool moveFast;
+    protected bool stopDash;
     void Start()
     {
+        startAD = AttackDamage;
         NewPosition = transform.position;
-        Anim = gameObject.GetComponent<Animator>();
+        //Anim = gameObject.GetComponent<Animator>();
         abilityLevelNum = 1;
         creepsOnly = LayerMask.GetMask("Creep");
         groundOnly = LayerMask.GetMask("Ground");
@@ -123,11 +137,14 @@ public class PlayerBase : MonoBehaviour
         LevelUp();
         updateAbilDamage();
         abilityDescription();
-        center = this.transform;
         StartCoroutine(regen());
         health = maxHealth;
-        takeDamage(0, false);
+        takeDamage(0, false, false);
+        //canvasPlayer = gameObject.transform.Find("PlayerCan").gameObject;
         addList();
+        startArmor = Armor;
+        startMagicRes = MagicResist;
+        //wallMask = 517;
     }
     void updateAbilDamage()
     {
@@ -145,10 +162,28 @@ public class PlayerBase : MonoBehaviour
         passiveUpdate();
         UpdateAtkSpeed();
         itemUpdate();
+        changeMoveSpeed();
+    }
+    protected virtual void OnTriggerEnter(Collider collider)
+    {
+        if (collider.gameObject.layer == LayerMask.NameToLayer("Wall"))
+        {
+            stopDash = true;
+        }
     }
     protected virtual void UpdateAtkSpeed()
     {
         Anim.SetFloat("AtkSpeed", AttackSpeed);
+    }
+    protected virtual void updateAtkSpeedLevel()
+    {
+        AttackSpeed /= itemAtkSpeed + 1;
+        itemAtkSpeed = 0;
+        foreach (Item statItem in items)
+        {
+            itemAtkSpeed += statItem.attackSpeed * 0.01f;
+        }
+        AttackSpeed *= itemAtkSpeed + 1;
     }
     public virtual void EndAttack()
     {
@@ -164,7 +199,7 @@ public class PlayerBase : MonoBehaviour
     {
         hasShield = true;
         currentShield = shieldAmt;
-        takeDamage(0, false);
+        takeDamage(0, false, false);
         StartCoroutine(shieldDelay(duration));
     }
     IEnumerator shieldDelay(float duration)
@@ -172,7 +207,7 @@ public class PlayerBase : MonoBehaviour
         yield return new WaitForSeconds(duration);
         hasShield = false;
         currentShield = 0;
-        takeDamage(0, false);
+        takeDamage(0, false, false);
     }
     void addList()
     {
@@ -185,7 +220,7 @@ public class PlayerBase : MonoBehaviour
     {
 
     }
-    void itemChange()
+    protected void itemChange()
     {
         if (items.Find(x => (x.name == "AscendedBrain(Clone)")))
         {
@@ -299,7 +334,13 @@ public class PlayerBase : MonoBehaviour
     {
         NewPosition = transform.position;
     }
-    
+    public void SpawnBossUI()
+    {
+        GameObject ui = Instantiate(gameManager.bossUI);
+        ui.transform.SetParent(canvasPlayer.transform);
+        ui.transform.localPosition = Vector3.zero;
+        ui.GetComponent<BossUI>().gm = gameManager;
+    }
     public virtual void stopMoving()
     {
         isMoving = false;
@@ -323,7 +364,7 @@ public class PlayerBase : MonoBehaviour
         RTest();
         passiveUpdate();
     }
-    public void LevelUp()
+    public virtual void LevelUp()
     {
         levelNum.text = level.ToString();
         isUpgrading = true;
@@ -332,7 +373,7 @@ public class PlayerBase : MonoBehaviour
         {
             AttackDamage += ADPerLevel;
             AttackSpeed += ASPerLevel;
-            UpdateAtkSpeed();
+            updateAtkSpeedLevel();
             IndQ.levelUp();
             IndW.levelUp();
             IndE.levelUp();
@@ -343,7 +384,7 @@ public class PlayerBase : MonoBehaviour
             }
             abilityDescription();
             maxHealth += healthPerLevel;
-            takeDamage(-healthPerLevel, false);
+            takeDamage(-healthPerLevel, false, false);
         }
         else
         {
@@ -359,14 +400,14 @@ public class PlayerBase : MonoBehaviour
         yield return new WaitForSeconds(1);
         if (health + hpPerSec < maxHealth)
         {
-            takeDamage(-hpPerSec, false);
+            takeDamage(-hpPerSec, false, false);
         }
         StartCoroutine(regen());
     }
-    public void buyItem(Item newItem)
+    public void buyItem(Item newItem, int itemGold)
     {
         string badProgramming;
-        if (newItem.gold <= gold && items.Count < 6)
+        if (itemGold <= gold && items.Count < 6)
         {
             foreach (Item purchasedItem in items)
             {
@@ -381,11 +422,11 @@ public class PlayerBase : MonoBehaviour
             }
             foreach (Item destroyed in itemsToDestroy)
             {
-                gameManager.MurderObject(destroyed.gameObject, 0.1f);
+               MurderObject(destroyed.gameObject, 0.1f);
                 items.Remove(destroyed);               
             }
             itemsToDestroy.RemoveRange(0, itemsToDestroy.Count);
-            changeGold(-newItem.gold);
+            changeGold(-itemGold);
             GameObject newItemAdd = GameObject.Instantiate((GameObject)Resources.Load(newItem.name));
             items.Add(newItemAdd.GetComponent<Item>());
             newItemAdd.transform.parent = gameManager.imageItems[items.Count - 1].transform;
@@ -393,6 +434,15 @@ public class PlayerBase : MonoBehaviour
             newItemAdd.transform.localScale = new Vector3(0.16f, 0.293f, 0.36f);
             updateItemStats();
         }
+    }
+    public void MurderObject(GameObject objectToKill, float delay)
+    {
+        StartCoroutine(kill(delay, objectToKill));
+    }
+    IEnumerator kill(float delay, GameObject deadObject)
+    {
+        yield return new WaitForSeconds(delay);
+        Destroy(deadObject);
     }
     IEnumerator CeasarUpdate()
     {
@@ -403,8 +453,10 @@ public class PlayerBase : MonoBehaviour
             StartCoroutine(CeasarUpdate());
         }
     }
-    void updateItemStats()
+    protected virtual void updateItemStats()
     {
+        AttackDamage = startAD + (ADPerLevel * level);
+        AttackSpeed /= itemAtkSpeed + 1;
         itemAD = 0;
         itemAP = 0;
         itemAtkSpeed = 0;
@@ -424,11 +476,18 @@ public class PlayerBase : MonoBehaviour
         }
         AttackDamage += itemAD;
         AbilityPower += itemAP;
-        AttackSpeed += itemAtkSpeed;
+        AttackSpeed *= itemAtkSpeed + 1;
         maxHealth += itemHealth;
         if (CDReduction > 45)
         {
             CDReduction = 45;
+        }
+        if (CDReduction > 0 && newCDR > 0)
+        {
+            CDQ /= newCDR;
+            CDW /= newCDR;
+            CDE /= newCDR;
+            CDR /= newCDR;
         }
         newCDR = CDReduction * 0.01f;
         newCDR = 1 - newCDR;
@@ -505,14 +564,14 @@ public class PlayerBase : MonoBehaviour
                 if (!canAttackAfterAuto)
                 {
                     bufferedPosition = hit.point;
-                    bufferedPosition.y = 0.5f;
+                    bufferedPosition.y = 0.2f;
                     StartCoroutine(waitToMove());
                     isBuffering = true;
                 }
                 else
                 {
                     NewPosition = hit.point;
-                    NewPosition.y = 0.5f;
+                    NewPosition.y = 0.2f;
                     EndAttack();
                 }
             }
@@ -724,7 +783,7 @@ public class PlayerBase : MonoBehaviour
     }
     public void walkTowardsTarget(Creep touchedCreep)
     {
-        NewPosition = touchedCreep.transform.position;
+        NewPosition = touchedCreep.transform.position - offsetY;
         isWalkingToTarget = true;
     }
     public virtual void AttackCreep(Transform target)
@@ -766,7 +825,7 @@ public class PlayerBase : MonoBehaviour
             IndQ.StartCooldown(CDQ, this, 1);
             forceStopMoving();
             QuindRot = QIndicator.transform.rotation;
-            graphics.transform.rotation = QIndicator.transform.rotation;
+            graphics.transform.rotation = QuindRot;
             Anim.SetTrigger("Q");
             Anim.SetBool("isAttacking", true);
             Anim.SetBool("isIdle", false);
@@ -899,7 +958,7 @@ public class PlayerBase : MonoBehaviour
             }
             if (itemsHad[10])
             {
-                takeDamage((int)(AttackDamage * -0.2), false);
+                takeDamage((int)(AttackDamage * -0.2), false, false);
             }
             canAttackAfterAuto = true;
             if (hexagonAttack)
@@ -925,6 +984,20 @@ public class PlayerBase : MonoBehaviour
         RPressed = false;
         anythingWorks = false;
     }
+    void changeMoveSpeed()
+    {
+        if (gameManager.creeps.Count <= 0 && !moveFast)
+        {
+            moveSlow = false;
+            moveFast = true;
+            speed *= 2;
+        } else if (gameManager.creeps.Count > 0 && !moveSlow)
+        {
+            moveSlow = true;
+            moveFast = false;
+            speed /= 2;
+        }
+    }
     protected virtual IEnumerator waitToMove()
     {
         while (!canAttackAfterAuto || isMoving)
@@ -936,9 +1009,9 @@ public class PlayerBase : MonoBehaviour
         NewPosition = bufferedPosition;
         creepSelected = null;
     }
-    public virtual void takeDamage(int damage, bool magic)
+    public virtual void takeDamage(int damage, bool magic, bool sound)
     {
-        if (magic)
+        if (!magic)
         {
             if (hasShield)
             {
@@ -950,17 +1023,82 @@ public class PlayerBase : MonoBehaviour
                 if (currentShield <= 0)
                 {
                     hasShield = false;
-                    takeDamage(0, false);
+                    takeDamage(0, false, false);
                 }
             }
             else
             {
-                newDamage = (int)(damage * (100 / (100 + MagicResist)));
-                health -= newDamage;
-                if (newDamage != 0)
+                if (damage <= -25)
                 {
+                    health -= damage;
+                    GameObject dmgNum = GameObject.Instantiate((GameObject)Resources.Load("DamageTextPlayerHeal"));
+                    dmgNum.transform.SetParent(canvasPlayer.transform);
+                    dmgNum.GetComponent<DamageNum>().objectToFollow = this.gameObject.transform;
+                    dmgNum.GetComponent<DamageNum>().damageText = Mathf.Abs(damage).ToString();
+                }
+                else if (damage > 0)
+                {
+                    float physRes = 100.0f / (Armor + 100.0f);
+                    newDamage = (int)(damage * physRes);
+                    health -= newDamage;
+                    GameObject dmgNum = GameObject.Instantiate((GameObject)Resources.Load("DamageTextPlayer"));
+                    dmgNum.transform.SetParent(canvasPlayer.transform);
+                    dmgNum.GetComponent<DamageNum>().objectToFollow = this.gameObject.transform;
+                    dmgNum.GetComponent<DamageNum>().damageText = newDamage.ToString();
+                }
+                else
+                {
+                    newDamage = damage;
+                    health -= newDamage;
+                    float div = (float)health / (float)maxHealth;
+                    healthbar.fillAmount = div;
+                    healthdiv.text = health.ToString() + "/" + maxHealth.ToString();
+                }
+                if (health < 0)
+                {
+                    //die
+                }
+                else
+                {
+                    float div = (float)health / (float)maxHealth;
+                    healthbar.fillAmount = div;
+                    healthdiv.text = health.ToString() + "/" + maxHealth.ToString();
+                }
+            }
+        }
+        else
+        {
+
+            if (hasShield)
+            {
+                currentShield -= damage;
+                float div = (float)health / ((float)maxHealth + (float)currentShield);
+                healthbar.fillAmount = div;
+                shieldbar.fillAmount = ((float)health + (float)currentShield) / ((float)maxHealth + (float)currentShield);
+                healthdiv.text = health.ToString() + "/" + (maxHealth + currentShield).ToString();
+                if (currentShield <= 0)
+                {
+                    hasShield = false;
+                    takeDamage(0, false, false);
+                }
+            }
+            else
+            {
+                float magRes = 100.0f / (Armor + 100.0f);
+                newDamage = (int)(damage * magRes);
+                if (damage <= -25)
+                {
+                    health -= newDamage;
+                    GameObject dmgNum = GameObject.Instantiate((GameObject)Resources.Load("DamageTextPlayerHeal"));
+                    dmgNum.transform.SetParent(canvasPlayer.transform);
+                    dmgNum.GetComponent<DamageNum>().objectToFollow = this.gameObject.transform;
+                    dmgNum.GetComponent<DamageNum>().damageText = Mathf.Abs(damage).ToString();
+                }
+                else if (damage > 0)
+                {
+                    health -= newDamage;
                     GameObject dmgNum = GameObject.Instantiate((GameObject)Resources.Load("DamageTextPlayerMagic"));
-                    dmgNum.transform.SetParent(gameManager.baseCanvas.transform);
+                    dmgNum.transform.SetParent(canvasPlayer.transform);
                     dmgNum.GetComponent<DamageNum>().objectToFollow = this.gameObject.transform;
                     dmgNum.GetComponent<DamageNum>().damageText = newDamage.ToString();
                 }
@@ -975,55 +1113,6 @@ public class PlayerBase : MonoBehaviour
                     healthdiv.text = health.ToString() + "/" + maxHealth.ToString();
                 }
             }
-        }else
-        {
-
-            if (hasShield)
-            {
-                currentShield -= damage;
-                float div = (float)health / ((float)maxHealth + (float)currentShield);
-                healthbar.fillAmount = div;
-                shieldbar.fillAmount = ((float)health + (float)currentShield) / ((float)maxHealth + (float)currentShield);
-                healthdiv.text = health.ToString() + "/" + (maxHealth + currentShield).ToString();
-                if (currentShield <= 0)
-                {
-                    hasShield = false;
-                    takeDamage(0, false);
-                }
-            }
-            else
-            {
-                newDamage = (int)(damage *(100 / (100 + Armor)));
-                health -= newDamage;
-                if (newDamage <= -20)
-                {
-                    GameObject dmgNum = GameObject.Instantiate((GameObject)Resources.Load("DamageTextPlayerHeal"));
-                    dmgNum.transform.SetParent(gameManager.baseCanvas.transform);
-                    dmgNum.GetComponent<DamageNum>().objectToFollow = this.gameObject.transform;
-                    dmgNum.GetComponent<DamageNum>().damageText = Mathf.Abs(damage).ToString();
-                }
-                else
-                {
-                    if (newDamage > 0)
-                    {
-                        GameObject dmgNum = GameObject.Instantiate((GameObject)Resources.Load("DamageTextPlayer"));
-                        dmgNum.transform.SetParent(gameManager.baseCanvas.transform);
-                        dmgNum.GetComponent<DamageNum>().objectToFollow = this.gameObject.transform;
-                        dmgNum.GetComponent<DamageNum>().damageText = newDamage.ToString();
-                    }
-                }
-                if (health < 0)
-                {
-                    //die
-                }
-                else
-                {
-                    float div = (float)health / (float)maxHealth;
-                    healthbar.fillAmount = div;
-                    healthdiv.text = health.ToString() + "/" + maxHealth.ToString();
-                }
-            }
         }
-        
     }
 }

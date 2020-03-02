@@ -29,6 +29,7 @@ public class Item : MonoBehaviour {
     bool oneClick;
     float doubleTime;
     bool usingDouble;
+    int newGold;
     public bool isChecked;
     public void MouseEnter()
     {
@@ -84,10 +85,10 @@ public class Item : MonoBehaviour {
 
     void checkPrice()
     {
-        int newGold = gold;
+        newGold = gold;
         foreach (Item item in build)
         {
-            foreach (Item playerItem in gameManager.player.items)
+            foreach (Item playerItem in gameManager.acplayer.items)
             {
                 if (string.Equals(item.gameObject.name + "(Clone)", playerItem.gameObject.name) && !playerItem.isChecked)
                 {
@@ -96,7 +97,7 @@ public class Item : MonoBehaviour {
                 }
             }
         }
-        foreach (Item playerItem in gameManager.player.items)
+        foreach (Item playerItem in gameManager.acplayer.items)
         {
             playerItem.isChecked = false;
         }
@@ -111,10 +112,18 @@ public class Item : MonoBehaviour {
             shopControl.openTree();
             usingDouble = false;
             oneClick = false;
+            if (gameObject.activeInHierarchy== true)
+            {
+                gameObject.SetActive(false);
+            }
         }
     }
     public void activateTree()
     {
+        if(gameObject.activeInHierarchy == false)
+        {
+            gameObject.SetActive(true);
+        }
         if (!oneClick)
         {
             oneClick = true;
@@ -123,7 +132,8 @@ public class Item : MonoBehaviour {
         }
         else
         {
-            gameManager.player.buyItem(this);
+            checkPrice();
+            gameManager.acplayer.buyItem(this, newGold);
             oneClick = false;
             usingDouble = true;
         }

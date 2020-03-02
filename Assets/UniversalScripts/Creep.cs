@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using System.Linq;
 
 public class Creep : MonoBehaviour {
     public int maxHealth = 300;
@@ -12,22 +13,23 @@ public class Creep : MonoBehaviour {
     public bool takingDamage;
     public bool canMove = true;
     public bool isStunned;
+    public Vector3 trailOffset;
     public GameObject Nexus;
     public MonicaController monica;
     public bool playerInRadius = false;
     public bool playerInAutoRadius = false;
     public bool monicaInRadius;
     public bool monicaInAutoRadius;
-    Vector3 NewPosition;
+    protected Vector3 NewPosition;
     public float NexusAttackRange;
-    Animator anim;
+    public Animator anim;
     public GameObject canvas1;
-    bool isMoving;
+    protected bool isMoving;
     public PlayerBase player;
     public bool isAttacking;
     public bool attackDelay;
     public int damage;
-    Vector3 offset = new Vector3(0, 1, 0);
+    public Vector3 offset = new Vector3(0, 1, 0);
     public AnchorUI healthbar;
     Vector3 minionDistance;
     Vector3 moveOffset;
@@ -38,30 +40,46 @@ public class Creep : MonoBehaviour {
     float randDiffz;
     Vector3 randDiff;
     public int gold;
-    int armor;
-    int magicResist;
+    public int armor;
+    public int magicResist;
     bool armorShredded;
     bool mrShredded;
     public bool isQdNic;
     public GameManager gameManager;
-    bool attackingMonica;
-    void Update()
+    protected bool attackingMonica;
+    Vector3 movePos = new Vector3(0, -10, 0);
+    public bool isSlowed;
+    public bool isRanged;
+    protected GameObject trailSpawn;
+    public bool isMarkedByNate;
+    public GavinPassiveHitbox gavHb;
+    public virtual void Update()
     {
         AI();
+        if (canvas1 == null)
+        {
+            canvas1 = player.canvasPlayer;
+        }
     }
-    public bool takeDamage(int damage)
+    public virtual bool takeDamage(int damage)
     {
-        health -= (int)(damage * (100 / (100 + armor)));
+        int newDamage = (int)(damage * (100.0f / (100.0f + armor)));
+        health -= newDamage;
         GameObject dmgNum = GameObject.Instantiate((GameObject)Resources.Load("DamageText"));
         dmgNum.transform.SetParent(canvas1.transform);
         dmgNum.GetComponent<DamageNum>().objectToFollow = this.gameObject.transform;
-        dmgNum.GetComponent<DamageNum>().damageText = ((int)(damage * (100 / (100 + armor)))).ToString();
+        dmgNum.GetComponent<DamageNum>().damageText = newDamage.ToString();
         healthbar.takeDamage(health, maxHealth);
         if (health <= 0)
         {
+            Destroy(healthbar.gameObject);
+            if (gavHb != null)
+            {
+                gavHb.creepDied(this);
+            }
             gameManager.delayGold(gold, this.transform, this);
             player.changeGold(gold);
-            gameObject.SetActive(false);
+
             return true;
         } else
         {
@@ -69,7 +87,7 @@ public class Creep : MonoBehaviour {
         }
     }
 
-    IEnumerator MagicDelay(int dmg)
+    protected IEnumerator MagicDelay(int dmg)
     {
         yield return new WaitForSeconds(0.15f);
         GameObject dmgNum = GameObject.Instantiate((GameObject)Resources.Load("DamageTextMagic"));
@@ -77,16 +95,22 @@ public class Creep : MonoBehaviour {
         dmgNum.GetComponent<DamageNum>().objectToFollow = this.gameObject.transform;    
         dmgNum.GetComponent<DamageNum>().damageText = dmg.ToString();
     }
-    public bool takeMagicDamage(int damage)
+    public virtual bool takeMagicDamage(int damage)
     {
-        health -= (int)(damage * (100 / (100 + magicResist)));
-        StartCoroutine(MagicDelay((int)(damage * (100 / (100 + armor))))); 
+        health -= (int)(damage * (100.0f / (100.0f + magicResist)));
+        StartCoroutine(MagicDelay((int)(damage * (100.0f / (100.0f + magicResist))))); 
         healthbar.takeDamage(health, maxHealth);
         if (health <= 0)
         {
+            Destroy(healthbar.gameObject);
+            if (gavHb != null)
+            {
+                gavHb.creepDied(this);
+            }
             gameManager.delayGold(gold, this.transform, this);
             player.changeGold(gold);
-            gameObject.SetActive(false);
+            //transform.position = movePos;
+
             return true;
         }
         else
@@ -96,10 +120,11 @@ public class Creep : MonoBehaviour {
     }
     public void canMoveAgain()
     {
+        anim.enabled = true;
         canMove = true;
     }
     #region Knock-Up
-    public void knockUp(float knockTime)
+    public virtual void knockUp(float knockTime)
     {
         canMove = false;
         canAttack = false;
@@ -135,15 +160,20 @@ public class Creep : MonoBehaviour {
             yield return new WaitForFixedUpdate();
         }
     }
-
-    public void takeQ(GameObject hook)
+    public void takeRoot(float duration)
+    {
+        canMove = false;
+        anim.enabled = false;
+        Invoke("canMoveAgain", duration);
+    }
+    public virtual void takeQ(GameObject hook)
     {
         isQdNic = true;
         StartCoroutine(takeHook(hook));
     }
     #endregion
     #region Knockback
-    public void takeKnockback(Vector3 PlaceToGo, float speed, float duration)
+    public virtual void takeKnockback(Vector3 PlaceToGo, float speed, float duration)
     {
         canMove = false;
         canAttack = false;
@@ -180,7 +210,7 @@ public class Creep : MonoBehaviour {
     {
         float startTime = Time.time;
         Vector3 center = (transform.position + PlaceToGo) * 0.5f;
-        center.y += -1f;
+        center.y += -2f;
         Vector3 startArea = transform.position - center;
         Vector3 endArea = PlaceToGo - center;
         float suck = 0;
@@ -196,7 +226,7 @@ public class Creep : MonoBehaviour {
         canMove = true;
     }
     #endregion
-    public void takeStun(float duration)
+    public virtual void takeStun(float duration)
     {
         isStunned = true;
         canMove = false;
@@ -210,16 +240,22 @@ public class Creep : MonoBehaviour {
     }
     public void slow(float percent, float duration)
     {
+        trailSpawn = GameObject.Instantiate((GameObject)Resources.Load("TrailSpawner"));
+        trailSpawn.transform.parent = this.transform;
+        trailSpawn.transform.localPosition = transform.position + trailOffset;
+        trailSpawn.GetComponent<DeathTimer>().timeAlive = duration;
         float originalSpeed = Speed;
-        Speed *= percent * 0.01f;
+        Speed *= (percent * 0.01f);
+        isSlowed = true;
         StartCoroutine(takeSlow(originalSpeed, duration));
     }
     public IEnumerator takeSlow(float originalSpeed, float duration)
     {
         yield return new WaitForSeconds(duration);
+        isSlowed = false;
         Speed = originalSpeed;
     }
-    void Start()
+    public virtual void Start()
     {
         anim = gameObject.GetComponent<Animator>();
         health = maxHealth;
@@ -227,21 +263,26 @@ public class Creep : MonoBehaviour {
         randDiffz = Random.Range(-2, 2);
         randDiff = new Vector3(randDiffx, 0, randDiffz);
     }
-    public void takeDamageOverTime(int damage)
+    public void takeDamageOverTime(int damage, bool isMagic, bool isDio)
     {
         if (takingDamage)
         {
-            StartCoroutine(takeDoT(damage));
+            StartCoroutine(takeDoT(damage, isMagic, isDio));
         }
     }
-    public IEnumerator takeDoT(int damage)
+    public IEnumerator takeDoT(int damage, bool isMagic, bool isDio)
     {
         if (takingDamage)
         {
-            takeDamage(damage);
-
+            if (isMagic)
+            {
+                takeMagicDamage(damage);
+            }else
+            {
+                takeDamage(damage);
+            }
             yield return new WaitForSeconds(0.5f);
-            StartCoroutine(takeDoT(damage));
+            StartCoroutine(takeDoT(damage, isMagic, isDio));
         }
     }
 
@@ -355,15 +396,21 @@ public class Creep : MonoBehaviour {
     }
     public void endAttack()
     {
-        isAttacking = false;
-        if (attackingMonica)
-        {
-            monica.takeDamage(this.damage);
-        }else
-        {
-            player.takeDamage(this.damage, false);
-        }
         canAttack = true;
+        isAttacking = false;
+        if (!isRanged)
+        {
+            isAttacking = false;
+            if (attackingMonica)
+            {
+                monica.takeDamage(this.damage);
+            }
+            else
+            {
+                player.takeDamage(this.damage, false, false);
+            }
+        }
+
     }
     public virtual IEnumerator AttackDelay()
     {

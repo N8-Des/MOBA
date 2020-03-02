@@ -30,6 +30,7 @@ public class KentPlayer : PlayerBase
     public GameObject swimFX;
     float speedHold;
     float extraSpeedR = 2.5f;
+    public GameObject bulletEndGoal;
     public List<GameObject> meshes = new List<GameObject>();
     public void Awake()
     {
@@ -81,8 +82,20 @@ public class KentPlayer : PlayerBase
                 achecker = rad2;
                 rad2 = backUp;
                 rangedProj = !rangedProj;
+                if (!rangedProj)
+                {
+                    Anim.SetTrigger("Put");
+                }else
+                {
+                    Anim.SetTrigger("Pull");
+                }
             }
+
         }
+    }
+    public void switchAnim()
+    {
+        Anim.SetBool("HasGun", rangedProj);
     }
     public override void activateE()
     {
@@ -108,7 +121,7 @@ public class KentPlayer : PlayerBase
             RHurtbox.Damage = RDamage + (int)(AbilityPower * 0.1);
             foreach (GameObject kentMesh in meshes)
             {
-                kentMesh.SetActive(!kentMesh.active);
+                kentMesh.SetActive(!kentMesh.activeInHierarchy);
             }
             if (itemsHad[6])
             {
@@ -166,13 +179,15 @@ public class KentPlayer : PlayerBase
     {
         float elapsedTime = 0;
         Vector3 startingPos = objectToMove.transform.position;
-        while (elapsedTime < seconds)
+        while (elapsedTime < seconds && !stopDash)
         {
             objectToMove.transform.position = Vector3.Lerp(startingPos, end, (elapsedTime / seconds));
             elapsedTime += Time.deltaTime;
             yield return new WaitForEndOfFrame();
         }
-        objectToMove.transform.position = end;
+        stopDash = false;
+        NewPosition = transform.position;
+        //objectToMove.transform.position = end;
         EHitbox.gameObject.SetActive(false);
     }
     public override void WTest()
@@ -228,24 +243,32 @@ public class KentPlayer : PlayerBase
             EndAttack();
             autoNum = 1;
             RaycastHit hit;
+            RaycastHit yeet;
+            bool cant = false;
             Ray raymond = Camera.main.ScreenPointToRay(Input.mousePosition);
             if (Physics.Raycast(raymond, out hit, Mathf.Infinity, groundOnly))
             {
-                if (!canAttackAfterAuto)
+                if (Physics.Linecast(transform.position + rayOffset, hit.point + rayOffset, out yeet, wallMask))
+                {
+                    if (yeet.collider.transform != null)
+                    {
+                        cant = true;
+                    }
+                }
+                if (!canAttackAfterAuto && !cant)
                 {
                     bufferedPosition = hit.point;
-                    bufferedPosition.y = 0.5f;
                     StartCoroutine(waitToMove());
                     isBuffering = true;
                 }
-                else
+                else if (!cant)
                 {
                     canAttackAfterAuto = true;
                     NewPosition = hit.point;
-                    NewPosition.y = 0.5f;
                     EndAttack();
                 }
             }
+            cant = false;
             if (Physics.Raycast(raymond, out hit, Mathf.Infinity, creepsOnly) && hit.transform.tag == "Creep")
             {
                 Creep touchedCreep = hit.transform.gameObject.GetComponent<Creep>();
@@ -336,6 +359,9 @@ public class KentPlayer : PlayerBase
         IndW.updateAbilityName("(W) Nerf or Nothing");
         IndE.updateAbilityName("(E) All-Star Dash");
         IndR.updateAbilityName("(R) Feat of the Swimmer");
+        string Pdesc = "Kent Bonney is immune to sound-based damage";
+        passiveDesc.GetComponentInParent<AbilityIndicator>().updateAbilityName("Yielding Ear");
+        passiveDesc.GetComponentInParent<AbilityIndicator>().updateAbilityDescription(Pdesc);
     }
     public override void AttackCreep(Transform target)
     {
@@ -396,6 +422,17 @@ public class KentPlayer : PlayerBase
             KentUI[numWON - 1].SetActive(true);
         }
         StartCoroutine(waitingW());
+    }
+    public override void takeDamage(int damage, bool magic, bool sound)
+    {
+        if (sound)
+        {
+            //yielded
+        }else
+        {
+            base.takeDamage(damage, magic, sound);
+
+        }
     }
     public void shootGun()
     {
@@ -474,7 +511,7 @@ public class KentPlayer : PlayerBase
             }
             if (itemsHad[10])
             {
-                takeDamage((int)(AttackDamage * -0.2), false);
+                takeDamage((int)(AttackDamage * -0.2), false, false);
             }
             if (hexagonAttack)
             {
@@ -495,7 +532,7 @@ public class KentPlayer : PlayerBase
     {
         GameObject bigBullet = GameObject.Instantiate((GameObject)Resources.Load("KentBigBullet"));
         bigBullet.transform.rotation = WindRot;
-        bigBullet.transform.position = transform.position;
+        bigBullet.transform.position = transform.position + new Vector3(0, 1, 0);
         Hurtbox hb = bigBullet.GetComponent<Hurtbox>();
         Rigidbody rb = bigBullet.GetComponent<Rigidbody>();
         hb.player = this;

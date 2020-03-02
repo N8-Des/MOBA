@@ -16,8 +16,8 @@ public class SamsonPlayer : PlayerBase
     int preQAD;
     float preRAS;
     float preRMS;
-    [SerializeField]
-    GameObject fingerSpawn;
+    public GameObject fingerSpawn;
+    public int CritChance = 10;
     Vector3 pos;
 
     public override void activateW()
@@ -33,11 +33,12 @@ public class SamsonPlayer : PlayerBase
     }
     public IEnumerator Dash()
     {
-        while (isDashing)
+        while (isDashing && !stopDash)
         {
             transform.position = Vector3.MoveTowards(transform.position, dashLoc, Time.deltaTime * 25);
             yield return new WaitForEndOfFrame();
         }
+        endDash();
     }
     public void endDash()
     {
@@ -75,6 +76,7 @@ public class SamsonPlayer : PlayerBase
     }
     public override void abilityDescription()
     {
+        CritChance = 25 + (3 * level);
         Qdesc = "Samson activates his Sharingan, gaining " + QDamage + "% additional attack damage for the next 6 seconds.";
         Wdesc = "Samson's auto attacks passively climb the crescendo. Every eigth attack deals" + 
             "<color=orange> (+" + (int)(AttackDamage * 2) + ")</color> plus <color=red>" + WDamage + "%</color> of the enemy's max health as physical damage.";
@@ -89,8 +91,15 @@ public class SamsonPlayer : PlayerBase
         IndW.updateAbilityName("(W) Piano Man");
         IndE.updateAbilityName("(E) Beamdash");
         IndR.updateAbilityName("(R) BLOOD RUSH!");
+        string Pdesc = "Samson's auto attacks have a " + CritChance + "% chance to critically strike, dealing 50% increased damage. This cannot apply to his final shot of Piano Man.";
+        passiveDesc.GetComponentInParent<AbilityIndicator>().updateAbilityName("Natural Precision");
+        passiveDesc.GetComponentInParent<AbilityIndicator>().updateAbilityDescription(Pdesc);
+        IndR.updateAbilityDescription(Rdesc);
 
-
+    }
+    public override void LevelUp()
+    {
+        base.LevelUp();
     }
     public override void AttackCreep(Transform target)
     {
@@ -133,7 +142,7 @@ public class SamsonPlayer : PlayerBase
             CooldownE = false;
             canMove = false;
             IndE.StartCooldown(CDE, this, 3);
-            dashLoc = new Vector3(ELocation.transform.position.x, 0, ELocation.transform.position.z);
+            dashLoc = new Vector3(ELocation.transform.position.x, transform.position.y, ELocation.transform.position.z);
             forceStopMoving();
             graphics.transform.rotation = EIndicator.transform.rotation;
             Anim.SetTrigger("E");
@@ -160,24 +169,32 @@ public class SamsonPlayer : PlayerBase
             }
             autoNum = 1;
             RaycastHit hit;
+            RaycastHit yeet;
+            bool cant = false;
             Ray raymond = Camera.main.ScreenPointToRay(Input.mousePosition);
             if (Physics.Raycast(raymond, out hit, Mathf.Infinity, groundOnly))
             {
-                if (!canAttackAfterAuto)
+                if (Physics.Linecast(transform.position + rayOffset, hit.point + rayOffset, out yeet, wallMask))
+                {
+                    if (yeet.collider.transform != null)
+                    {
+                        cant = true;
+                    }
+                }
+                if (!canAttackAfterAuto && !cant)
                 {
                     bufferedPosition = hit.point;
-                    bufferedPosition.y = 0.5f;
                     StartCoroutine(waitToMove());
                     isBuffering = true;
                 }
-                else
+                else if (!cant)
                 {
                     canAttackAfterAuto = true;
                     NewPosition = hit.point;
-                    NewPosition.y = 0.5f;
                     EndAttack();
                 }
             }
+            cant = false;
             if (Physics.Raycast(raymond, out hit, Mathf.Infinity, creepsOnly) && hit.transform.tag == "Creep")
             {
                 Creep touchedCreep = hit.transform.gameObject.GetComponent<Creep>();
@@ -271,7 +288,6 @@ public class SamsonPlayer : PlayerBase
     {
         if (!isMoving)
         {
-            canAttackAfterAuto = false;
             if (itemsHad[5])
             {
                 if (numGorilla <= 10)
@@ -281,6 +297,7 @@ public class SamsonPlayer : PlayerBase
             }
             if (IndW.levelNum > 0)
             {
+                int crit = Random.Range(0, 100);
                 if (WNumber >= 9)
                 {
                     spawnProj("SamsonWBullet", 25, (int)((AttackDamage * 2) + (creepSelected.maxHealth * (WDamage * 0.01f))));
@@ -289,15 +306,31 @@ public class SamsonPlayer : PlayerBase
                 }
                 else
                 {
-                    spawnProj("SamsonBullet", 15, AttackDamage);
-                    GameObject sound = GameObject.Instantiate((GameObject)Resources.Load("SamsonAutoFX"));
+                    if (crit <= CritChance)
+                    {
+                        spawnProj("SamsonBullet", 15, (int)(AttackDamage * 1.5f));
+                        GameObject sound = GameObject.Instantiate((GameObject)Resources.Load("SamsonAutoFX"));
+                    } else
+                    {
+                        spawnProj("SamsonBullet", 15, AttackDamage);
+                        GameObject sound = GameObject.Instantiate((GameObject)Resources.Load("SamsonAutoFX"));
+                    }
                 }
                 WNumber += 1;
             }
             else
             {
-                spawnProj("SamsonBullet", 15, AttackDamage);
-                GameObject sound = GameObject.Instantiate((GameObject)Resources.Load("SamsonAutoFX"));
+                int crit = Random.Range(0, 100);
+                if (crit <= CritChance)
+                {
+                    spawnProj("SamsonBullet", 15, (int)(AttackDamage * 1.5f));
+                    GameObject sound = GameObject.Instantiate((GameObject)Resources.Load("SamsonAutoFX"));
+                }
+                else
+                {
+                    spawnProj("SamsonBullet", 15, AttackDamage);
+                    GameObject sound = GameObject.Instantiate((GameObject)Resources.Load("SamsonAutoFX"));
+                }
             }
         }
     }

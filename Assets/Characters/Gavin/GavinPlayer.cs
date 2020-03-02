@@ -4,6 +4,7 @@ using UnityEngine;
 
 public class GavinPlayer : PlayerBase
 {
+    public GavinPassiveHitbox passiveHitbox;
     private bool WEmp = false;
     private int damageE;
     public GameObject WLoc;
@@ -13,7 +14,10 @@ public class GavinPlayer : PlayerBase
     int numattacks = 0;
     public GameObject EHitbox;
     float damageReduction;
+    int extraAD = 0;
     float div;
+    string Pdesc;
+    public AudioManager aManager;
     public override void activateW()
     {
         CooldownW = false;
@@ -22,6 +26,10 @@ public class GavinPlayer : PlayerBase
         {
             StartCoroutine(hexagon());
         }
+    }
+    public void playSound(int soundNum)
+    {
+        aManager.audioList[soundNum].Play();
     }
     public void dashSword()
     {
@@ -33,8 +41,7 @@ public class GavinPlayer : PlayerBase
         EHitbox.SetActive(true);
         Hurtbox ehb = EHitbox.GetComponent<Hurtbox>();
         ehb.player = this;
-        ehb.damage += (int)(AttackDamage * 0.55f);
-        ehb.damage += EDamage;
+        ehb.damage = (int)(AttackDamage * 0.55f) + EDamage;
         StartCoroutine(dashE(gameObject, dashLoc, 0.6f));
 
     }
@@ -43,13 +50,15 @@ public class GavinPlayer : PlayerBase
     {
         float elapsedTime = 0;
         Vector3 startingPos = objectToMove.transform.position;
-        while (elapsedTime < seconds)
+        while (elapsedTime < seconds && !stopDash)
         {
             objectToMove.transform.position = Vector3.Lerp(startingPos, end, (elapsedTime / seconds));
             elapsedTime += Time.deltaTime;
             yield return new WaitForEndOfFrame();
         }
-        objectToMove.transform.position = end;
+        stopDash = false;
+        //objectToMove.transform.position = end;
+        NewPosition = transform.position;
         EHitbox.SetActive(false);
         EndAttack();
     }
@@ -62,24 +71,32 @@ public class GavinPlayer : PlayerBase
             EndAttack();
             autoNum = 1;
             RaycastHit hit;
+            RaycastHit yeet;
+            bool cant = false;
             Ray raymond = Camera.main.ScreenPointToRay(Input.mousePosition);
             if (Physics.Raycast(raymond, out hit, Mathf.Infinity, groundOnly))
             {
-                if (!canAttackAfterAuto)
+                if (Physics.Linecast(transform.position + rayOffset, hit.point + rayOffset, out yeet, wallMask))
+                {
+                    if (yeet.collider.transform != null)
+                    {
+                        cant = true;
+                    }
+                }
+                if (!canAttackAfterAuto && !cant)
                 {
                     bufferedPosition = hit.point;
-                    bufferedPosition.y = 0.5f;
                     StartCoroutine(waitToMove());
                     isBuffering = true;
                 }
-                else
+                else if (!cant)
                 {
                     canAttackAfterAuto = true;
                     NewPosition = hit.point;
-                    NewPosition.y = 0.5f;
                     EndAttack();
                 }
             }
+            cant = false;
             if (Physics.Raycast(raymond, out hit, Mathf.Infinity, creepsOnly) && hit.transform.tag == "Creep")
             {
                 Creep touchedCreep = hit.transform.gameObject.GetComponent<Creep>();
@@ -142,6 +159,8 @@ public class GavinPlayer : PlayerBase
         IndW.updateAbilityName("(W) Spinny Strike");
         IndE.updateAbilityName("(E) Beyblade Dash");
         IndR.updateAbilityName("(R) Unkillable");
+        passiveDesc.GetComponentInParent<AbilityIndicator>().updateAbilityName("Public Embarrasment");
+        passiveDesc.GetComponentInParent<AbilityIndicator>().updateAbilityDescription(Pdesc);
     }
     public override void AttackCreep(Transform target)
     {
@@ -180,10 +199,15 @@ public class GavinPlayer : PlayerBase
     }
     public override void passiveUpdate()
     {
+        extraAD = 5 * (passiveHitbox.creeps.Count);
+        string Pdesc = "Gavin gains increased damage based on the enemies around him. \n\n\nCurrent auto attack damage bonus: " + extraAD;
+        passiveDesc.GetComponentInParent<AbilityIndicator>().updateAbilityDescription(Pdesc);
         if (IndR.levelNum > 0)
         {
-            div = (float)health / (float)maxHealth;
-            damageReduction = RDamage * div;
+            div = (maxHealth - health);
+            div /= (float)maxHealth;
+            damageReduction = 45 * div;
+            Debug.Log(damageReduction);
         }
     }
     public override void hitCreepWithAuto()
@@ -231,21 +255,21 @@ public class GavinPlayer : PlayerBase
                 int rando = Random.Range(0, 99);
                 if (rando >= 80)
                 {
-                    creepSelected.takeDamage(AttackDamage);
+                    creepSelected.takeDamage(AttackDamage + extraAD);
                 }
             }
             if (itemsHad[10])
             {
-                takeDamage((int)(AttackDamage * -0.2), false);
+                takeDamage((int)(AttackDamage * -0.2), false, false);
             }
             if (hexagonAttack)
             {
-                creepSelected.takeDamage(AttackDamage + 100);
+                creepSelected.takeDamage(AttackDamage + 100 + extraAD);
                 GameObject effect2 = GameObject.Instantiate((GameObject)Resources.Load("GavinAutoHitFX"));
                 effect2.transform.position = creepSelected.transform.position;
             } else
             {
-                creepSelected.takeDamage(AttackDamage);
+                creepSelected.takeDamage(AttackDamage + extraAD);
             }
             GameObject effect = GameObject.Instantiate((GameObject)Resources.Load("GavinAutoHitFX"));
             effect.transform.position = creepSelected.transform.position;
@@ -255,6 +279,7 @@ public class GavinPlayer : PlayerBase
     {
         hitCreepWithAuto();
         creepSelected.takeMagicDamage(WDamage + (int)(AbilityPower * 0.45) + (int)(AttackDamage * 0.8));
+        WEmp = false;
     }
     public void endDamageAuto()
     {
@@ -268,11 +293,16 @@ public class GavinPlayer : PlayerBase
         Anim.SetBool("isWalking", false);
         Anim.SetBool("isAttacking", false);
     }
-    public override void takeDamage(int damage, bool magic)
+
+    public override void takeDamage(int damage, bool magic, bool sound)
     {
         if (damageReduction != 0)
         {
-            damage = (int)(damage * (damageReduction / 100));
+            damage = (int)(damage * (float)(damageReduction / 100.0f));
+            if (damage <= 0)
+            {
+                damage = 1;
+            }
         }
         if (!magic)
         {
@@ -286,17 +316,37 @@ public class GavinPlayer : PlayerBase
                 if (currentShield <= 0)
                 {
                     hasShield = false;
-                    takeDamage(0, false);
+                    takeDamage(0, false, false);
                 }
             }
             else
             {
-                newDamage = (int)(damage * (100 / (100 + MagicResist)));
-                health -= newDamage;
-                GameObject dmgNum = GameObject.Instantiate((GameObject)Resources.Load("DamageTextPlayerMagic"));
-                dmgNum.transform.SetParent(gameManager.baseCanvas.transform);
-                dmgNum.GetComponent<DamageNum>().objectToFollow = this.gameObject.transform;
-                dmgNum.GetComponent<DamageNum>().damageText = newDamage.ToString();
+                if (damage <= -25)
+                {
+                    health -= damage;
+                    GameObject dmgNum = GameObject.Instantiate((GameObject)Resources.Load("DamageTextPlayerHeal"));
+                    dmgNum.transform.SetParent(canvasPlayer.transform);
+                    dmgNum.GetComponent<DamageNum>().objectToFollow = this.gameObject.transform;
+                    dmgNum.GetComponent<DamageNum>().damageText = Mathf.Abs(damage).ToString();
+                }
+                else if (damage > 0)
+                {
+                    float physRes = 100.0f / (Armor + 100.0f);
+                    newDamage = (int)(damage * physRes);
+                    health -= newDamage;
+                    GameObject dmgNum = GameObject.Instantiate((GameObject)Resources.Load("DamageTextPlayer"));
+                    dmgNum.transform.SetParent(canvasPlayer.transform);
+                    dmgNum.GetComponent<DamageNum>().objectToFollow = this.gameObject.transform;
+                    dmgNum.GetComponent<DamageNum>().damageText = newDamage.ToString();
+                }
+                else
+                {
+                    newDamage = damage;
+                    health -= newDamage;
+                    float div = (float)health / (float)maxHealth;
+                    healthbar.fillAmount = div;
+                    healthdiv.text = health.ToString() + "/" + maxHealth.ToString();
+                }
                 if (health < 0)
                 {
                     //die
@@ -322,23 +372,26 @@ public class GavinPlayer : PlayerBase
                 if (currentShield <= 0)
                 {
                     hasShield = false;
-                    takeDamage(0, false);
+                    takeDamage(0, false, false);
                 }
             }
             else
             {
-                newDamage = (int)(damage * (100 / (100 + Armor)));
-                if (damage <= -20)
+                float magRes = 100.0f / (Armor + 100.0f);
+                newDamage = (int)(damage * magRes);
+                if (damage <= -25)
                 {
                     GameObject dmgNum = GameObject.Instantiate((GameObject)Resources.Load("DamageTextPlayerHeal"));
-                    dmgNum.transform.SetParent(gameManager.baseCanvas.transform);
+                    dmgNum.transform.SetParent(canvasPlayer.transform);
+                    health -= damage;
                     dmgNum.GetComponent<DamageNum>().objectToFollow = this.gameObject.transform;
                     dmgNum.GetComponent<DamageNum>().damageText = Mathf.Abs(damage).ToString();
                 }
-                else
+                else if (damage > 0)
                 {
-                    GameObject dmgNum = GameObject.Instantiate((GameObject)Resources.Load("DamageTextPlayer"));
-                    dmgNum.transform.SetParent(gameManager.baseCanvas.transform);
+                    health -= newDamage;
+                    GameObject dmgNum = GameObject.Instantiate((GameObject)Resources.Load("DamageTextPlayerMagic"));
+                    dmgNum.transform.SetParent(canvasPlayer.transform);
                     dmgNum.GetComponent<DamageNum>().objectToFollow = this.gameObject.transform;
                     dmgNum.GetComponent<DamageNum>().damageText = newDamage.ToString();
                 }
@@ -354,6 +407,5 @@ public class GavinPlayer : PlayerBase
                 }
             }
         }
-
     }
 }

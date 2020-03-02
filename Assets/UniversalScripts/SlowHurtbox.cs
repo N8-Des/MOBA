@@ -8,6 +8,14 @@ public class SlowHurtbox : Hurtbox {
     public override bool attackCreep(Creep creepHit)
     {
         creepHit.slow(slowPotency, slowTime);
+        if (magicDamage)
+        {
+            creepHit.takeMagicDamage(damage);
+        }
+        else
+        {
+            creepHit.takeDamage(damage);
+        }
         return false;
     }
 }
